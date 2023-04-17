@@ -1,0 +1,91 @@
+1. Create 100 test leads using the future method that has
+names like test 1, test 2, test 3 etc. to use in the schedulable and
+queueable apex jobs
+////////////////////////////////////////
+public class futureleadclass {
+    @future
+    public static void createLead(){
+        list<lead> multilead=new List<lead>();
+        for(integer i=0;i<=100;i++){
+            lead singlelead=new lead();
+            singlelead.LastName='test'+i;
+            singlelead.Company='Test Company'+i;
+            multilead.add(singlelead);
+        }
+       insert multilead; 
+    }
+
+}
+////////
+apex code on anonymous window
+
+futureleadclass.createLead();
+///////////////////
+2.Update these 100 test leads description as < This lead is
+updated using Queuable Apex > via the queuable apex method.
+
+///////////
+public class updateleadqueueable implements Queueable{
+    public void execute(QueueableContext QC){
+        List<lead> multilead=[Select id,Description,LastName, Company from lead where LastName like '%test%'];
+        for(lead singlelead:multilead){
+            singlelead.Description='This lead is updated using Queuable Apex';
+        }
+        update multilead;
+    }
+
+}
+////////////
+apex code on anonymous window
+
+updateleadqueueable up=new updateleadqueueable();
+system.enqueueJob(up);
+/////////////////////////
+3.We add the term 'test' to the names of the leads we have
+created for testing purposes in order to distinguish them from
+real leads in a comfortable way, and we want to avoid
+unnecessary congestion in the system by deleting these test
+leads every Friday at 20:30.
+
+
+public class deleteleadSchedule implements Schedulable {
+    public void execute(schedulableContext SC){
+        list<lead> multilead=[Select id,Description,LastName, Company from lead where LastName like '%test%'];
+        delete multilead;
+    }
+    
+
+}
+////////////////
+apex code on anonymous window
+
+deleteleadSchedule del=new deleteleadSchedule();
+string cronExp='0 30 20 ? * FRI *';
+system.schedule('delete lead job', cronExp, del);
+//////////////
+4.. We have about 60000 Opportunities on the salesforce and 
+we want to update all of their close dates as one month later 
+than today. How can we do it? 
+
+
+public class oppbatchapex implements Database.Batchable<sObject>{
+    public Database.QueryLocator start(Database.BatchableContext BC){
+        return Database.getQueryLocator('Select id,Name, CloseDate,StageName from Opportunity');
+    }
+    public void execute(Database.BatchableContext BC, list<opportunity> opplist){
+        for(Opportunity opp:opplist){
+            opp.CloseDate= date.today()+30;
+        }
+        update opplist;
+    }
+    public void finish(Database.BatchableContext BC){
+        system.debug( 'lead batch is finished');
+    }
+
+}
+//////////////
+apex code on anonymous window
+
+oppbatchapex opp=new oppbatchapex();
+Database.executeBatch(opp);
+//////////
